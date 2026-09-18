@@ -16,7 +16,7 @@ Fully local. Zero telemetry. One small JSON state file.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  systemd user timer  ·  omarchy-focus-gate.timer            │
+│  omarchy service  ·  service/Service.qml                    │
 │  fires every 30s → runs bin/omarchy-focus-gate-daemon (tick) │
 │   ├─ recompute effective date; reset counters at 5 AM        │
 │   ├─ credit elapsed time to an active study session          │
@@ -36,7 +36,7 @@ Fully local. Zero telemetry. One small JSON state file.
   during the final 10-minute warning window. Left-click opens a panel with
   Start/Stop study buttons, today's totals, and the countdown to the 5 AM
   reset.
-- **The daemon is a short-lived tick** driven by a systemd user timer, not a
+- **The daemon is a short-lived tick** driven by the Omarchy plugin service, not a
   resident `while true` loop. Each tick measures *elapsed wall time* between
   ticks (capped at 5 minutes) so a suspended or delayed machine never
   invents study/game time. A suspend longer than 5 minutes contributes
@@ -53,10 +53,10 @@ Fully local. Zero telemetry. One small JSON state file.
 # 1. Add the plugin from git
 omarchy plugin add https://github.com/<you>/omarchy-focus-gate.git
 
-# 2. Put the widget on the bar
+# 2. Put the widget on the bar and enable the background service
 omarchy plugin enable omarchy-focus-gate
 
-# 3. Install the tracking timer + CLI on your PATH
+# 3. Install the CLI commands on your PATH (optional but recommended)
 ~/.config/omarchy/plugins/omarchy-focus-gate/bin/omarchy-focus-gate-install
 ```
 
@@ -66,12 +66,10 @@ update). It:
 - symlinks `bin/omarchy-focus-gate-*` into `~/.local/bin`
 - writes `~/.config/omarchy-focus-gate/config.json` (defaults) **only if
   missing** — your edits survive reinstalls
-- writes and enables the `omarchy-focus-gate.service` + `.timer` user units
-  (also only if missing, so manual edits survive too)
 
 After install, `omarchy-focus-gate-study`, `-daemon`, `-launch-guard`, and
-the (un)install hooks are on `PATH`. The timer starts immediately; the bar
-widget reads the same state file and updates itself no more than 30s later.
+the (un)install hooks are on `PATH`. The service starts immediately with the plugin; the bar
+widget reads the same state file and updates itself.
 
 ### Wrap your launchers
 
@@ -124,9 +122,9 @@ along in the same file.
 | Script | Purpose |
 | --- | --- |
 | `omarchy-focus-gate-study start\|stop\|status` | start/stop a study session, print a snapshot |
-| `omarchy-focus-gate-daemon` | one enforcement tick (run by the systemd user timer) |
+| `omarchy-focus-gate-daemon` | one enforcement tick (run by the omarchy service) |
 | `omarchy-focus-gate-launch-guard <cmd...>` | block-or-`exec` a game launch |
-| `omarchy-focus-gate-install` / `-uninstall` | manage the timer, units, symlinks |
+| `omarchy-focus-gate-install` / `-uninstall` | manage the config and CLI symlinks |
 
 All are idempotent and shellcheck-clean, and all begin by rolling the day
 forward (resetting counters) if the 5 AM boundary has been crossed.
@@ -139,8 +137,7 @@ omarchy plugin disable omarchy-focus-gate
 omarchy plugin remove omarchy-focus-gate
 ```
 
-`omarchy-focus-gate-uninstall` removes the timer, the units, and the bin
-symlinks. Your config and state are deliberately kept — delete
+`omarchy-focus-gate-uninstall` removes the bin symlinks. Your config and state are deliberately kept — delete
 `~/.config/omarchy-focus-gate` and `~/.local/state/omarchy/focus-gate`
 yourself when you want a clean slate.
 
@@ -153,7 +150,7 @@ nominated in your config. If you didn't put a process in
 
 ## Testing checklist
 
-- Fresh install; repeated `install` does not duplicate timers or overwrite config
+- Fresh install; repeated `install` does not overwrite config
 - Study session reaches 3h and flips `unlocked`
 - Closing/reopening the launcher mid-day does not reset the game timer
 - 5 AM effective-date rollover resets both counters and locks the gate
