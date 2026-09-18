@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy-focus-gate",
+  "name": "Focus Gate",
+  "version": "1.0.0",
+  "author": "vimal",
+  "description": "Gate gaming behind a completed study session: 3 hours of tracked study unlocks 1 hour of gaming per day (resets at 5 AM). Tracks study and game time with a systemd timer, hard-kills blocked games, and shows progress in the bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "ui/BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Focus Gate",
+    "description": "Study-to-game gate with live progress and a control panel",
+    "category": "Wellbeing",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

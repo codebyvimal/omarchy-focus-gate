@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# Install the focus-gate systemd user timer and CLI plumbing.
+#
+#   omarchy-focus-gate-install
+#
+# Safe to run any number of times (idempotent):
+#   - symlinks bin/omarchy-focus-gate-* into ~/.local/bin (no duplicates)
+#   - creates ~/.config/omarchy-focus-gate/config.json only if missing
+#   - writes the systemd user service+timer units only if missing
+#   - enables and starts the timer (enabling an enabled unit is a no-op)
+
+set -euo pipefail
+
+FG_LIB="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/lib" && pwd)/common.sh"
+# shellcheck source=lib/common.sh
+source "$FG_LIB"
+
+SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+SERVICE_FILE="$SYSTEMD_USER_DIR/omarchy-focus-gate.service"
+TIMER_FILE="$SYSTEMD_USER_DIR/omarchy-focus-gate.timer"
+BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+
+SERVICE_UNIT='[Unit]
+Description=Focus gate enforcement tick (one-shot; fired by the focus-gate timer)
+Documentation=man:omarchy-focus-gate-install
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-focus-gate-daemon
+'
+
+TIMER_UNIT='[Unit]
+Description=Fires the focus-gate enforcement tick every 30 seconds
+
+[Timer]
+OnCalendar=*-*-* *:*:00,30
+Persistent=true
+AccuracySec=1
+Unit=omarchy-focus-gate.service
+
+[Install]
+WantedBy=timers.target
+'
+
+fg_install_bin_symlinks() {
+  mkdir -p "$BIN_DIR"
+  local script target
+  for script in "$FG_PLUGIN_DIR"/bin/omarchy-focus-gate-*; do
+    [[ -f $script && -x $script ]] || continue
+    target="$BIN_DIR/$(basename "$script")"
+    if [[ ! -e $target ]]; then
+      ln -s "$script" "$target"
+      echo "linked $target -> $script"
+    fi
+  done
+}
+
+fg_install_systemd() {
+  mkdir -p "$SYSTEMD_USER_DIR"
+  if [[ ! -f $SERVICE_FILE ]]; then
+    printf '%s\n' "$SERVICE_UNIT" > "$SERVICE_FILE"
+  else
+    echo "focus-gate: keeping existing $SERVICE_FILE"
+  fi
+  if [[ ! -f $TIMER_FILE ]]; then
+    printf '%s\n' "$TIMER_UNIT" > "$TIMER_FILE"
+  else
+    echo "focus-gate: keeping existing $TIMER_FILE"
+  fi
+  systemctl --user daemon-reload
+  systemctl --user enable --now omarchy-focus-gate.timer
+}
+
+fg_install() {
+  fg_ensure_dirs
+
+  if [[ ! -f $FG_CONFIG_FILE ]]; then
+    printf '%s' "$FG_DEFAULT_CONFIG" > "$FG_CONFIG_FILE"
+    echo "wrote default config to $FG_CONFIG_FILE"
+  else
+    echo "focus-gate: keeping existing config at $FG_CONFIG_FILE"
+  fi
+
+  fg_install_bin_symlinks
+  fg_install_systemd
+
+  echo
+  echo "Focus Gate installed."
+  echo "  timer:  omarchy-focus-gate.timer ($(systemctl --user show -p NextElapseUSecRealtime --value omarchy-focus-gate.timer 2>/dev/null || echo 'next run unknown'))"
+  echo "  config: $FG_CONFIG_FILE  (edit tracked games, study/allowance, reset hour)"
+  echo "  state:  $FG_STATE_FILE"
+  echo "  bar:    add the widget with:  omarchy plugin enable omarchy-focus-gate"
+}
+
+fg_install "$@"

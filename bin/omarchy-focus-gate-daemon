@@ -1,0 +1,220 @@
+#!/bin/bash
+
+# Focus-gate daemon: one enforcement tick.
+#
+# A systemd user timer runs this every 30s (see omarchy-focus-gate-install).
+# Each tick:
+#   1. Recompute the effective date and reset counters if the day rolled
+#      over (5:00 AM local boundary, not midnight).
+#   2. If a study session is active, credit elapsed wall time to study.
+#   3. If study reached the required amount, unlock the gate once.
+#   4. If any tracked game launcher (and its whole process tree) is running:
+#        - kill it if the gate is locked or the daily allowance is spent
+#        - otherwise credit elapsed time and fire a one-time soft warning
+#          in the final 10 minutes before the cutoff.
+#
+# Runnable by hand for one tick (`omarchy-focus-gate-daemon`), but the
+# intended execution model is the timer: short-lived, no resident loop.
+#
+# Elapsed time is measured between ticks rather than assumed to be a fixed
+# 30s, so a delayed tick never invents time that was not actually spent
+# studying. A gap larger than FG_ELAPSED_CAP_SECONDS (5 minutes) is treated
+# as suspend/hibernate and contributes nothing.
+
+set -euo pipefail
+
+FG_LIB="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/lib" && pwd)/common.sh"
+# shellcheck source=lib/common.sh
+source "$FG_LIB"
+
+# ---------------------------------------------------------------------------
+# Process-tree helpers
+# ---------------------------------------------------------------------------
+
+# Emit the PIDs of every tracked launcher, matched by exact process name.
+fg_tracked_pids() {
+  local config
+  config=$(fg_config)
+  local name pid
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    while IFS= read -r pid; do
+      [[ -n $pid ]] && printf '%s\n' "$pid"
+    done < <(pgrep -x "$name" 2>/dev/null || true)
+  done < <(jq -r '.tracked_game_processes[]?' <<<"$config")
+}
+
+# Recursively emit all descendants of $1 (not $1 itself), parent processes
+# listed before their children on the way down.
+fg_descendants() {
+  local pid="$1"
+  local child
+  while IFS= read -r child; do
+    [[ -n $child ]] || continue
+    printf '%s\n' "$child"
+    fg_descendants "$child"
+  done < <(pgrep -P "$pid" 2>/dev/null || true)
+}
+
+# Kill a process tree: descendants first (deepest branch first), then the
+# root itself. TERM everything, give them a moment, then KILL survivors.
+fg_kill_tree() {
+  local root_pid="$1"
+  local victim
+  local survivors=()
+  while IFS= read -r victim; do
+    [[ -n $victim ]] || continue
+    kill -TERM "$victim" 2>/dev/null || true
+  done < <(fg_descendants "$root_pid")
+  kill -TERM "$root_pid" 2>/dev/null || true
+
+  sleep 1
+
+  while IFS= read -r victim; do
+    [[ -n $victim ]] || continue
+    if kill -0 "$victim" 2>/dev/null; then
+      survivors+=("$victim")
+    fi
+  done < <(printf '%s\n' "$root_pid"; fg_descendants "$root_pid")
+
+  if [[ ${#survivors[@]} -gt 0 ]]; then
+    kill -KILL "${survivors[@]}" 2>/dev/null || true
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Tick
+# ---------------------------------------------------------------------------
+
+fg_tick() {
+  fg_reset_if_day_changed
+
+  local config state now last_tick elapsed
+  config=$(fg_config)
+  state=$(fg_state)
+
+  now=$(date +%s)
+  last_tick=$(jq -r '.last_tick_epoch // 0' <<<"$state")
+  elapsed=0
+  if (( last_tick > 0 && now > last_tick )); then
+    elapsed=$((now - last_tick))
+    if (( elapsed > FG_ELAPSED_CAP_SECONDS )); then
+      elapsed=0
+    fi
+  fi
+
+  local required allowance warning_seconds
+  required=$(jq -r '.required_study_seconds' <<<"$config")
+  allowance=$(jq -r '.daily_game_allowance_seconds' <<<"$config")
+  warning_seconds=$(jq -r '.warning_seconds_before_cutoff' <<<"$config")
+
+  local study used unlocked active
+  study=$(jq -r '.study_seconds_today // 0' <<<"$state")
+  used=$(jq -r '.game_seconds_used_today // 0' <<<"$state")
+  unlocked=$(jq -r '.unlocked // false' <<<"$state")
+  active=$(jq -r '.study_session_active // false' <<<"$state")
+
+  # --- study accrual + unlock ----------------------------------------------
+  if [[ $active == true ]] && (( elapsed > 0 )); then
+    study=$((study + elapsed))
+    if [[ $unlocked != true ]] && (( study >= required )); then
+      unlocked=true
+      fg_notify normal \
+        "Focus Gate unlocked" \
+        "Study goal reached ($(fg_fmt_time "$study")). You have $(fg_fmt_time "$allowance") of gaming today."
+    fi
+  fi
+
+  # --- game enforcement ----------------------------------------------------
+  local tracked_pids
+  tracked_pids=$(fg_tracked_pids)
+  local is_blocked=false
+  local announce=""
+  local warning_announced
+  warning_announced=$(jq -r '.warning_announced // false' <<<"$state")
+
+  if [[ -z $tracked_pids ]]; then
+    warning_announced=false
+  elif [[ $unlocked != true ]]; then
+    is_blocked=true
+    announce="locked"
+  elif (( used >= allowance )); then
+    is_blocked=true
+    announce="spent"
+  else
+    # Allowed: credit the tick and watch the 10-minute warning window.
+    if (( elapsed > 0 )); then
+      used=$((used + elapsed))
+    fi
+    local remaining=$((allowance - used))
+    if (( remaining > 0 && remaining <= warning_seconds )) && [[ $warning_announced != true ]]; then
+      announce="warn"
+      warning_announced=true
+    fi
+  fi
+
+  if [[ $is_blocked == true ]]; then
+    local pid
+    while IFS= read -r pid; do
+      [[ -n $pid ]] || continue
+      if kill -0 "$pid" 2>/dev/null; then
+        fg_kill_tree "$pid"
+      fi
+    done <<<"$tracked_pids"
+    if [[ $announce == "locked" ]]; then
+      fg_notify critical \
+        "Focus Gate blocked a game" \
+        "Gaming stays locked until you have studied $(fg_fmt_time "$required"). Study now: $(fg_fmt_time "$study")."
+    elif [[ $announce == "spent" ]]; then
+      fg_notify critical \
+        "Focus Gate cut off gaming" \
+        "The daily $(fg_fmt_time "$allowance") gaming allowance is spent. Games will be blocked until tomorrow's reset."
+    fi
+    warning_announced=false
+  elif [[ $announce == "warn" ]]; then
+    local remaining=$((allowance - used))
+    fg_notify normal \
+      "Focus Gate: $(fg_fmt_time "$remaining") of game time left" \
+      "The daily allowance runs out soon. The gate will cut off gaming hard at 0m."
+  fi
+
+  # --- persist -------------------------------------------------------------
+  fg_state_write \
+    study_seconds_today="$study" \
+    game_seconds_used_today="$used" \
+    unlocked="$unlocked" \
+    warning_announced="$warning_announced" \
+    last_tick_epoch="$now"
+}
+
+# Compact duration label for notifications/status text ("10800" -> "3h").
+fg_fmt_time() {
+  local sec="$1"
+  local h m
+  h=$((sec / 3600))
+  m=$(((sec % 3600) / 60))
+  if (( h > 0 )); then
+    if (( m > 0 )); then printf '%dh %dm' "$h" "$m"; else printf '%dh' "$h"; fi
+  else
+    printf '%dm' "$m"
+  fi
+}
+
+fg_main() {
+  case "${1:-}" in
+    -h | --help)
+      cat <<'USAGE'
+Usage: omarchy-focus-gate-daemon
+
+Run a single focus-gate enforcement tick. Intended to be invoked by the
+systemd user timer (omarchy-focus-gate.timer) every 30s; safe to run by
+hand at any time.
+USAGE
+      ;;
+    *)
+      fg_tick
+      ;;
+  esac
+}
+
+fg_main "$@"

@@ -1,0 +1,140 @@
+#!/bin/bash
+
+# Control the focus-gate study session.
+#
+#   omarchy-focus-gate-study start    begin a study session
+#   omarchy-focus-gate-study stop     end the current study session
+#   omarchy-focus-gate-study status   print a human-readable snapshot
+#
+# Starting a session just flips a flag in state.json; the daemon tick (run
+# by the systemd user timer every 30s) does the actual time accrual, so a
+# session keeps counting even if this script's process is long gone.
+
+set -euo pipefail
+
+FG_LIB="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/lib" && pwd)/common.sh"
+# shellcheck source=lib/common.sh
+source "$FG_LIB"
+
+fg_usage() {
+  cat <<'USAGE'
+Usage: omarchy-focus-gate-study <start|stop|status>
+
+  start    begin a study session (idempotent; no-op if one is active)
+  stop     end the current study session (idempotent; no-op if none active)
+  status   print today's study/gate snapshot
+USAGE
+}
+
+fg_runner() {
+  local action="$1"
+  local config
+  config=$(fg_config)
+  local required
+  required=$(jq -r '.required_study_seconds' <<<"$config")
+
+  fg_reset_if_day_changed
+  local state
+  state=$(fg_state)
+  local active
+  active=$(jq -r '.study_session_active' <<<"$state")
+
+  case "$action" in
+    start)
+      if [[ $active == true ]]; then
+        echo "focus-gate: study session already active"
+        return 0
+      fi
+      fg_state_write study_session_active=true last_tick_epoch="$(date +%s)"
+      fg_notify normal "Focus Gate" "Study session started."
+      echo "focus-gate: study session started"
+      ;;
+    stop)
+      if [[ $active != true ]]; then
+        echo "focus-gate: no active study session"
+        return 0
+      fi
+      fg_state_write study_session_active=false
+      fg_notify normal "Focus Gate" "Study session stopped."
+      echo "focus-gate: study session stopped"
+      ;;
+  esac
+}
+
+fg_print_status() {
+  local config
+  config=$(fg_config)
+  local required
+  required=$(jq -r '.required_study_seconds' <<<"$config")
+  local allowance
+  allowance=$(jq -r '.daily_game_allowance_seconds' <<<"$config")
+  local reset_hour
+  reset_hour=$(jq -r '.reset_hour_local' <<<"$config")
+
+  fg_reset_if_day_changed
+  local state
+  state=$(fg_state)
+
+  local date study used unlocked active
+  date=$(jq -r '.effective_date' <<<"$state")
+  study=$(jq -r '.study_seconds_today' <<<"$state")
+  used=$(jq -r '.game_seconds_used_today' <<<"$state")
+  unlocked=$(jq -r '.unlocked' <<<"$state")
+  active=$(jq -r '.study_session_active' <<<"$state")
+
+  local study_fmt required_fmt used_fmt allowance_fmt
+  study_fmt=$(fg_duration_hhmm "$study")
+  required_fmt=$(fg_duration_hhmm "$required")
+  used_fmt=$(fg_duration_hhmm "$used")
+  allowance_fmt=$(fg_duration_hhmm "$allowance")
+
+  local gate_state
+  if [[ $unlocked == true ]]; then
+    gate_state="UNLOCKED (${used_fmt}/${allowance_fmt} game time used)"
+  else
+    gate_state="LOCKED (need ${study_fmt}/${required_fmt} study)"
+  fi
+
+  printf 'effective day:  %s\n' "$date"
+  printf 'study today:    %s / %s required\n' "$study_fmt" "$required_fmt"
+  printf 'gate:           %s\n' "$gate_state"
+  printf 'study session:  %s\n' "$([ "$active" == true ] && echo 'active' || echo 'inactive')"
+  if [[ $unlocked == true ]]; then
+    printf 'game time used: %s / %s allowed\n' "$used_fmt" "$allowance_fmt"
+  fi
+  printf 'day resets at:  %s:00 local (rolls over to %s)\n' "$reset_hour" "$date"
+}
+
+# Format a number of seconds as a compact "Xh Ym" / "Ym" duration.
+fg_duration_hhmm() {
+  local sec="$1"
+  local h m
+  h=$((sec / 3600))
+  m=$(((sec % 3600) / 60))
+  if (( h > 0 )); then
+    if (( m > 0 )); then printf '%dh %dm' "$h" "$m"; else printf '%dh' "$h"; fi
+  else
+    printf '%dm' "$m"
+  fi
+}
+
+fg_main() {
+  local action="${1:-}"
+  case "$action" in
+    start | stop)
+      fg_runner "$action"
+      ;;
+    status)
+      fg_print_status
+      ;;
+    -h | --help)
+      fg_usage
+      ;;
+    *)
+      fg_usage >&2
+      exit 1
+      ;;
+  esac
+}
+
+fg_main "$@"

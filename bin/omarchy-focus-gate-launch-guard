@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# Launch guard for games. Wrap desktop entries, aliases, and launchers with
+# this so a blocked launch never even starts:
+#
+#   omarchy-focus-gate-launch-guard heroic
+#
+# Exits non-zero (with a desktop notification explaining why) when the gate
+# is locked or the daily gaming allowance is already spent. Otherwise the
+# shell replaces itself with the given command via exec.
+
+set -euo pipefail
+
+FG_LIB="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/lib" && pwd)/common.sh"
+# shellcheck source=lib/common.sh
+source "$FG_LIB"
+
+fg_main() {
+  if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+    cat <<'USAGE'
+Usage: omarchy-focus-gate-launch-guard <command...>
+
+Guard a game launch behind the focus-gate rules. Prints a desktop
+notification and exits non-zero if the gate is locked or the daily gaming
+allowance is spent; otherwise execs <command...> in this shell's place.
+USAGE
+    exit 0
+  fi
+
+  if [[ $# -eq 0 ]]; then
+    echo "omarchy-focus-gate-launch-guard: missing command to launch" >&2
+    exit 1
+  fi
+
+  local config
+  config=$(fg_config)
+  local required allowance
+  required=$(jq -r '.required_study_seconds' <<<"$config")
+  allowance=$(jq -r '.daily_game_allowance_seconds' <<<"$config")
+
+  fg_reset_if_day_changed
+  local state
+  state=$(fg_state)
+  local unlocked study used
+  unlocked=$(jq -r '.unlocked // false' <<<"$state")
+  study=$(jq -r '.study_seconds_today // 0' <<<"$state")
+  used=$(jq -r '.game_seconds_used_today // 0' <<<"$state")
+
+  if [[ $unlocked != true ]]; then
+    fg_notify critical \
+      "Focus Gate: launch blocked" \
+      "Gaming is still locked. Study $(fg_fmt_time "$required") to unlock; you have $(fg_fmt_time "$study") so far."
+    exit 1
+  fi
+
+  if (( used >= allowance )); then
+    fg_notify critical \
+      "Focus Gate: launch blocked" \
+      "The daily $(fg_fmt_time "$allowance") gaming allowance is spent. Games unlock again at the next 5 AM reset."
+    exit 1
+  fi
+
+  exec "$@"
+}
+
+# Compact duration label ("10800" -> "3h").
+fg_fmt_time() {
+  local sec="$1"
+  local h m
+  h=$((sec / 3600))
+  m=$(((sec % 3600) / 60))
+  if (( h > 0 )); then
+    if (( m > 0 )); then printf '%dh %dm' "$h" "$m"; else printf '%dh' "$h"; fi
+  else
+    printf '%dm' "$m"
+  fi
+}
+
+fg_main "$@"

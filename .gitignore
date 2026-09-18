@@ -1,0 +1,7 @@
+# Local editor/OS droppings
+.DS_Store
+*.swp
+*.tmp
+
+# Nothing else is ignored: config templates, scripts, QML, and the preview
+# are all shipped.

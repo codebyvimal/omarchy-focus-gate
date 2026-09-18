@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Uninstall the focus-gate systemd user timer and CLI plumbing.
+#
+#   omarchy-focus-gate-uninstall
+#
+# Idempotent. Removes the timer/service units and the bin symlinks pointing
+# into this plugin. It deliberately leaves
+#   ~/.config/omarchy-focus-gate/config.json
+#   ~/.local/state/omarchy/focus-gate/state.json
+# behind: that is your data. Delete those directories yourself when you
+# really want a clean slate.
+
+set -euo pipefail
+
+FG_LIB="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/lib" && pwd)/common.sh"
+# shellcheck source=lib/common.sh
+source "$FG_LIB"
+
+SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+SERVICE_FILE="$SYSTEMD_USER_DIR/omarchy-focus-gate.service"
+TIMER_FILE="$SYSTEMD_USER_DIR/omarchy-focus-gate.timer"
+BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+
+fg_remove_systemd() {
+  systemctl --user disable --now omarchy-focus-gate.timer 2>/dev/null || true
+  rm -f "$TIMER_FILE" "$SERVICE_FILE"
+  systemctl --user daemon-reload
+}
+
+fg_remove_bin_symlinks() {
+  local link
+  local resolved
+  for link in "$BIN_DIR"/omarchy-focus-gate-*; do
+    [[ -L $link ]] || continue
+    resolved=$(readlink -f "$link" 2>/dev/null || true)
+    if [[ $resolved == "$FG_PLUGIN_DIR"/bin/omarchy-focus-gate-* ]]; then
+      rm -f "$link"
+      echo "removed $link"
+    fi
+  done
+}
+
+fg_uninstall() {
+  fg_remove_systemd
+  fg_remove_bin_symlinks
+  echo
+  echo "Focus Gate uninstalled. Kept: $FG_CONFIG_FILE and $FG_STATE_FILE."
+  echo "To remove the bar widget: omarchy plugin disable omarchy-focus-gate"
+}
+
+fg_uninstall "$@"
