@@ -124,7 +124,11 @@ fg_state_write() {
     key="${arg%%=*}"
     value="${arg#*=}"
     case "$key" in
-      effective_date | study_seconds_today | game_seconds_used_today \
+      effective_date)
+        jq_args+=(--arg "$key" "$value")
+        filter+=" | .$key = \$$key"
+        ;;
+      study_seconds_today | game_seconds_used_today \
         | unlocked | study_session_active | last_tick_epoch | warning_announced)
         jq_args+=(--argjson "$key" "$value")
         filter+=" | .$key = \$$key"
