@@ -102,7 +102,9 @@ fg_print_status() {
   if [[ $unlocked == true ]]; then
     printf 'game time used: %s / %s allowed\n' "$used_fmt" "$allowance_fmt"
   fi
-  printf 'day resets at:  %s:00 local (rolls over to %s)\n' "$reset_hour" "$date"
+  local roll_date
+  roll_date=$(date -d "$date + 1 day" +%F)
+  printf 'day resets at:  %s:00 local (rolls over to %s)\n' "$reset_hour" "$roll_date"
 }
 
 # Format a number of seconds as a compact "Xh Ym" / "Ym" duration.

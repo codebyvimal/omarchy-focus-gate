@@ -7,10 +7,7 @@ Item {
 
   // Paths
   readonly property string home: Quickshell.env("HOME")
-  readonly property string daemonScriptPath: {
-    var u = Qt.resolvedUrl("../bin/omarchy-focus-gate-daemon").toString()
-    return u.startsWith("file://") ? u.slice(7) : u
-  }
+  readonly property string daemonScriptPath: home + "/.config/omarchy/plugins/omarchy-focus-gate/bin/omarchy-focus-gate-daemon"
 
   // The timer acts like the systemd timer, ticking every 30s
   Timer {

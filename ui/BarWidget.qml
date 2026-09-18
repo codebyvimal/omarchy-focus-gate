@@ -30,12 +30,7 @@ BarWidget {
   readonly property string statePath: home + "/.local/state/omarchy/focus-gate/state.json"
   readonly property string configPath: home + "/.config/omarchy-focus-gate/config.json"
 
-  // Scripts ship alongside the plugin; compute the absolute path so they
-  // work regardless of where the plugin was cloned.
-  readonly property string studyScriptPath: {
-    var u = Qt.resolvedUrl("../bin/omarchy-focus-gate-study").toString()
-    return u.startsWith("file://") ? u.slice(7) : u
-  }
+  readonly property string studyScriptPath: home + "/.config/omarchy/plugins/omarchy-focus-gate/bin/omarchy-focus-gate-study"
 
   // ---- Live state (mirrored from state.json; replaced, never mutated) ----
   property string stEffectiveDate: ""
@@ -55,8 +50,8 @@ BarWidget {
   property bool loaded: false
 
   function refresh() {
-    var s = stateAdapter.state
-    var c = configAdapter.config
+    var s = root.stateContent
+    var c = root.configContent
     if (Util.isPlainObject(s)) {
       root.stEffectiveDate = String(s.effective_date || "")
       root.stStudySeconds = Number(s.study_seconds_today || 0)
@@ -121,32 +116,49 @@ BarWidget {
     environment: ({ HOME: root.home })
   }
 
-  // Refresh when the daemon (or the CLI) rewrites either file.
   FileView {
     id: stateFile
     path: root.statePath
     printErrors: false
-    onAdapterUpdated: root.refresh()
-    onLoaded: root.refresh()
-    onLoadFailed: root.refresh()
-    JsonAdapter {
-      id: stateAdapter
-      property var state: null
+    watchChanges: true
+    onFileChanged: reload()
+    onLoaded: {
+      try {
+        stateContent = JSON.parse(String(text() || "{}"))
+      } catch (e) {
+        stateContent = null
+      }
+      root.refresh()
+    }
+    onLoadFailed: {
+      stateContent = null
+      root.refresh()
     }
   }
+
+  property var stateContent: null
 
   FileView {
     id: configFile
     path: root.configPath
     printErrors: false
-    onAdapterUpdated: root.refresh()
-    onLoaded: root.refresh()
-    onLoadFailed: root.refresh()
-    JsonAdapter {
-      id: configAdapter
-      property var config: null
+    watchChanges: true
+    onFileChanged: reload()
+    onLoaded: {
+      try {
+        configContent = JSON.parse(String(text() || "{}"))
+      } catch (e) {
+        configContent = null
+      }
+      root.refresh()
+    }
+    onLoadFailed: {
+      configContent = null
+      root.refresh()
     }
   }
+
+  property var configContent: null
 
   // Create the state/config dirs and default files on first run, then wire
   // the file watchers. (Mirrors the install hook so the widget is usable
