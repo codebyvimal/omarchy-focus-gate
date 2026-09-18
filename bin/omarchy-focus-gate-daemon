@@ -45,14 +45,17 @@ fg_tracked_pids() {
 }
 
 # Recursively emit all descendants of $1 (not $1 itself), parent processes
-# listed before their children on the way down.
+# listed before their children on the way down. Depth is capped at 8 to
+# guard against pathological trees or PID cycles inside containers.
 fg_descendants() {
   local pid="$1"
+  local depth="${2:-0}"
+  (( depth < 8 )) || return 0
   local child
   while IFS= read -r child; do
     [[ -n $child ]] || continue
     printf '%s\n' "$child"
-    fg_descendants "$child"
+    fg_descendants "$child" "$(( depth + 1 ))"
   done < <(pgrep -P "$pid" 2>/dev/null || true)
 }
 

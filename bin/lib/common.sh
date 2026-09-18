@@ -83,10 +83,10 @@ fg_config_exists() {
 fg_config() {
   if [[ -f $FG_CONFIG_FILE ]]; then
     jq -r \
-      --argjson required "$(jq -n --argjson v 10800 '$v')" \
-      --argjson allowance "$(jq -n --argjson v 3600 '$v')" \
-      --argjson reset_hour "$(jq -n --argjson v 5 '$v')" \
-      --argjson warning "$(jq -n --argjson v 600 '$v')" \
+      --argjson required  10800 \
+      --argjson allowance 3600  \
+      --argjson reset_hour 5   \
+      --argjson warning   600  \
       '. | {
         required_study_seconds: (.required_study_seconds // $required),
         daily_game_allowance_seconds: (.daily_game_allowance_seconds // $allowance),

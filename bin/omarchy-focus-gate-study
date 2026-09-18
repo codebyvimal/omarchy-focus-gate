@@ -18,10 +18,11 @@ source "$FG_LIB"
 
 fg_usage() {
   cat <<'USAGE'
-Usage: omarchy-focus-gate-study <start|stop|status>
+Usage: omarchy-focus-gate-study <start|stop|toggle|status>
 
   start    begin a study session (idempotent; no-op if one is active)
   stop     end the current study session (idempotent; no-op if none active)
+  toggle   start if inactive, stop if active — great for keybindings
   status   print today's study/gate snapshot
 USAGE
 }
@@ -57,6 +58,17 @@ fg_runner() {
       fg_state_write study_session_active=false
       fg_notify normal "Focus Gate" "Study session stopped."
       echo "focus-gate: study session stopped"
+      ;;
+    toggle)
+      if [[ $active == true ]]; then
+        fg_state_write study_session_active=false
+        fg_notify normal "Focus Gate" "Study session stopped."
+        echo "focus-gate: study session stopped"
+      else
+        fg_state_write study_session_active=true last_tick_epoch="$(date +%s)"
+        fg_notify normal "Focus Gate" "Study session started."
+        echo "focus-gate: study session started"
+      fi
       ;;
   esac
 }
@@ -111,7 +123,7 @@ fg_print_status() {
 fg_main() {
   local action="${1:-}"
   case "$action" in
-    start | stop)
+    start | stop | toggle)
       fg_runner "$action"
       ;;
     status)
