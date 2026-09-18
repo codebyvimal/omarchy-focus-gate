@@ -94,7 +94,7 @@ entries can use it as `Exec=omarchy-focus-gate-launch-guard heroic %u`.
   "daily_game_allowance_seconds": 3600,     // gaming allowed per day (1h)
   "reset_hour_local": 5,                    // the "day" rolls over here, not midnight
   "warning_seconds_before_cutoff": 600,     // soft-warning window before a hard cut (10m)
-  "tracked_game_processes": ["heroic", "t-launcher", "sober"]  // launcher binaries to watch
+  "tracked_game_processes": ["steam", "lutris", "heroic", "bottles", "sober", "t-launcher", "retroarch", "minecraft-launcher", "prismlauncher"]  // launcher binaries to watch
 }
 ```
 

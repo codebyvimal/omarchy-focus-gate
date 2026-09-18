@@ -36,9 +36,18 @@ FG_DEFAULT_CONFIG='{
   "daily_game_allowance_seconds": 3600,
   "reset_hour_local": 5,
   "warning_seconds_before_cutoff": 600,
-  "tracked_game_processes": ["heroic", "t-launcher", "sober"]
-}
-'
+  "tracked_game_processes": [
+    "steam",
+    "lutris",
+    "heroic",
+    "bottles",
+    "sober",
+    "t-launcher",
+    "retroarch",
+    "minecraft-launcher",
+    "prismlauncher"
+  ]
+}'
 
 FG_DEFAULT_STATE='{
   "effective_date": "1970-01-01",
@@ -83,7 +92,7 @@ fg_config() {
         daily_game_allowance_seconds: (.daily_game_allowance_seconds // $allowance),
         reset_hour_local: (.reset_hour_local // $reset_hour),
         warning_seconds_before_cutoff: (.warning_seconds_before_cutoff // $warning),
-        tracked_game_processes: (.tracked_game_processes // ["heroic", "t-launcher", "sober"])
+        tracked_game_processes: (.tracked_game_processes // ["steam", "lutris", "heroic", "bottles", "sober", "t-launcher", "retroarch", "minecraft-launcher", "prismlauncher"])
       }' "$FG_CONFIG_FILE"
   else
     printf '%s\n' "$FG_DEFAULT_CONFIG"

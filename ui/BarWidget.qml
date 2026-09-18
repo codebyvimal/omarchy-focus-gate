@@ -156,7 +156,7 @@ BarWidget {
     environment: ({ HOME: root.home })
     command: ["bash", "-c",
       "mkdir -p \"$HOME/.local/state/omarchy/focus-gate\" \"$HOME/.config/omarchy-focus-gate\"; " +
-      "[[ -f \"$HOME/.config/omarchy-focus-gate/config.json\" ]] || printf '{\n  \"required_study_seconds\": 10800,\n  \"daily_game_allowance_seconds\": 3600,\n  \"reset_hour_local\": 5,\n  \"warning_seconds_before_cutoff\": 600,\n  \"tracked_game_processes\": [\"heroic\", \"t-launcher\", \"sober\"]\n}\n' > \"$HOME/.config/omarchy-focus-gate/config.json\"; " +
+      "[[ -f \"$HOME/.config/omarchy-focus-gate/config.json\" ]] || printf '{\n  \"required_study_seconds\": 10800,\n  \"daily_game_allowance_seconds\": 3600,\n  \"reset_hour_local\": 5,\n  \"warning_seconds_before_cutoff\": 600,\n  \"tracked_game_processes\": [\"steam\", \"lutris\", \"heroic\", \"bottles\", \"sober\", \"t-launcher\", \"retroarch\", \"minecraft-launcher\", \"prismlauncher\"]\n}\n' > \"$HOME/.config/omarchy-focus-gate/config.json\"; " +
       "[[ -f \"$HOME/.local/state/omarchy/focus-gate/state.json\" ]] || printf '{\"effective_date\": \"1970-01-01\",\"study_seconds_today\": 0,\"game_seconds_used_today\": 0,\"unlocked\": false,\"study_session_active\": false}\n' > \"$HOME/.local/state/omarchy/focus-gate/state.json\""]
     onExited: {
       stateFile.reload()
