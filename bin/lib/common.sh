@@ -190,6 +190,23 @@ fg_reset_if_day_changed() {
 }
 
 # ---------------------------------------------------------------------------
+# Formatting
+# ---------------------------------------------------------------------------
+
+# Compact duration label for notifications/status text ("10800" -> "3h").
+fg_fmt_time() {
+  local sec="$1"
+  local h m
+  h=$((sec / 3600))
+  m=$(((sec % 3600) / 60))
+  if (( h > 0 )); then
+    if (( m > 0 )); then printf '%dh %dm' "$h" "$m"; else printf '%dh' "$h"; fi
+  else
+    printf '%dm' "$m"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Notifications
 # ---------------------------------------------------------------------------
 
@@ -200,6 +217,6 @@ fg_notify() {
   local urgency="$1"
   local summary="$2"
   local body="$3"
-  command -v notify-send >/dev/null 2>&1 || return 0
-  notify-send -u "$urgency" -a "focus-gate" "$summary" "$body" >/dev/null 2>&1 || true
+  command -v notify-send > /dev/null 2>&1 || return 0
+  notify-send -u "$urgency" -a "focus-gate" "$summary" "$body" > /dev/null 2>&1 || true
 }

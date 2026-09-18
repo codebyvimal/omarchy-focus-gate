@@ -63,17 +63,4 @@ USAGE
   exec "$@"
 }
 
-# Compact duration label ("10800" -> "3h").
-fg_fmt_time() {
-  local sec="$1"
-  local h m
-  h=$((sec / 3600))
-  m=$(((sec % 3600) / 60))
-  if (( h > 0 )); then
-    if (( m > 0 )); then printf '%dh %dm' "$h" "$m"; else printf '%dh' "$h"; fi
-  else
-    printf '%dm' "$m"
-  fi
-}
-
 fg_main "$@"

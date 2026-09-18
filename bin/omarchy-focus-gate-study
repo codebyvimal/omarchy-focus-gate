@@ -83,10 +83,10 @@ fg_print_status() {
   active=$(jq -r '.study_session_active' <<<"$state")
 
   local study_fmt required_fmt used_fmt allowance_fmt
-  study_fmt=$(fg_duration_hhmm "$study")
-  required_fmt=$(fg_duration_hhmm "$required")
-  used_fmt=$(fg_duration_hhmm "$used")
-  allowance_fmt=$(fg_duration_hhmm "$allowance")
+  study_fmt=$(fg_fmt_time "$study")
+  required_fmt=$(fg_fmt_time "$required")
+  used_fmt=$(fg_fmt_time "$used")
+  allowance_fmt=$(fg_fmt_time "$allowance")
 
   local gate_state
   if [[ $unlocked == true ]]; then
@@ -107,18 +107,6 @@ fg_print_status() {
   printf 'day resets at:  %s:00 local (rolls over to %s)\n' "$reset_hour" "$roll_date"
 }
 
-# Format a number of seconds as a compact "Xh Ym" / "Ym" duration.
-fg_duration_hhmm() {
-  local sec="$1"
-  local h m
-  h=$((sec / 3600))
-  m=$(((sec % 3600) / 60))
-  if (( h > 0 )); then
-    if (( m > 0 )); then printf '%dh %dm' "$h" "$m"; else printf '%dh' "$h"; fi
-  else
-    printf '%dm' "$m"
-  fi
-}
 
 fg_main() {
   local action="${1:-}"

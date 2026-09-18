@@ -51,7 +51,7 @@ Fully local. Zero telemetry. One small JSON state file.
 
 ```bash
 # 1. Add the plugin from git
-omarchy plugin add https://github.com/<you>/omarchy-focus-gate.git
+omarchy plugin add https://github.com/vimalb/omarchy-focus-gate.git
 
 # 2. Put the widget on the bar and enable the background service
 omarchy plugin enable omarchy-focus-gate
