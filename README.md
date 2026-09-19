@@ -94,7 +94,8 @@ entries can use it as `Exec=omarchy-focus-gate-launch-guard heroic %u`.
   "daily_game_allowance_seconds": 3600,     // gaming allowed per day (1h)
   "reset_hour_local": 5,                    // the "day" rolls over here, not midnight
   "warning_seconds_before_cutoff": 600,     // soft-warning window before a hard cut (10m)
-  "tracked_game_processes": ["steam", "lutris", "heroic", "bottles", "sober", "t-launcher", "retroarch", "minecraft-launcher", "prismlauncher"]  // launcher binaries to watch
+  "tracked_game_processes": ["steam", "lutris", "heroic", "bottles", "sober", "t-launcher", "retroarch", "minecraft-launcher", "prismlauncher"],  // launcher binaries to watch
+  "tracked_game_commands": ["tlauncher", "TLauncher", "minecraft"] // match games by command line string (for java games)
 }
 ```
 
@@ -146,7 +147,7 @@ yourself when you want a clean slate.
 The bar widget executes only the plugin's own `bin/` scripts to start and
 stop study sessions; the daemon kills process trees whose root binaries are
 nominated in your config. If you didn't put a process in
-`tracked_game_processes`, the daemon will never touch it.
+`tracked_game_processes` or `tracked_game_commands`, the daemon will never touch it.
 
 ## Testing checklist
 

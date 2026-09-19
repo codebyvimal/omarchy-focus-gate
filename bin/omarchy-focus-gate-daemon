@@ -36,12 +36,22 @@ fg_tracked_pids() {
   local config
   config=$(fg_config)
   local name pid
+  
+  # Exact process names
   while IFS= read -r name; do
     [[ -n $name ]] || continue
     while IFS= read -r pid; do
       [[ -n $pid ]] && printf '%s\n' "$pid"
     done < <(pgrep -x "$name" 2>/dev/null || true)
   done < <(jq -r '.tracked_game_processes[]?' <<<"$config")
+
+  # Command line patterns
+  while IFS= read -r pattern; do
+    [[ -n $pattern ]] || continue
+    while IFS= read -r pid; do
+      [[ -n $pid ]] && printf '%s\n' "$pid"
+    done < <(pgrep -f "$pattern" 2>/dev/null || true)
+  done < <(jq -r '.tracked_game_commands[]?' <<<"$config")
 }
 
 # Recursively emit all descendants of $1 (not $1 itself), parent processes

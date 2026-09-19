@@ -46,6 +46,11 @@ FG_DEFAULT_CONFIG='{
     "retroarch",
     "minecraft-launcher",
     "prismlauncher"
+  ],
+  "tracked_game_commands": [
+    "tlauncher",
+    "TLauncher",
+    "minecraft"
   ]
 }'
 
@@ -92,7 +97,8 @@ fg_config() {
         daily_game_allowance_seconds: (.daily_game_allowance_seconds // $allowance),
         reset_hour_local: (.reset_hour_local // $reset_hour),
         warning_seconds_before_cutoff: (.warning_seconds_before_cutoff // $warning),
-        tracked_game_processes: (.tracked_game_processes // ["steam", "lutris", "heroic", "bottles", "sober", "t-launcher", "retroarch", "minecraft-launcher", "prismlauncher"])
+        tracked_game_processes: (.tracked_game_processes // ["steam", "lutris", "heroic", "bottles", "sober", "t-launcher", "retroarch", "minecraft-launcher", "prismlauncher"]),
+        tracked_game_commands: (.tracked_game_commands // ["tlauncher", "TLauncher", "minecraft"])
       }' "$FG_CONFIG_FILE"
   else
     printf '%s\n' "$FG_DEFAULT_CONFIG"
